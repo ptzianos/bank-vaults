@@ -4,7 +4,7 @@ metadata:
   name: vault-dev
   namespace: default
 spec:
-  size: 3
+  size: 1
   image: vault:1.4.2
   bankVaultsImage: docker.io/banzaicloud/bank-vaults:add_individual_svc_in_sans
 
