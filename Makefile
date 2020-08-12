@@ -2,6 +2,12 @@
 
 OS = $(shell uname)
 
+DOCKER_BUILD_EXTRA_ARGS ?= 
+# Export HOST_NETWORK=1 if you want to build the docker images with 
+ifeq (${HOST_NETWORK}, 1)
+	DOCKER_BUILD_EXTRA_ARGS += --network host
+endif
+
 # Project variables
 PACKAGE = github.com/banzaicloud/bank-vaults
 BINARY_NAME ?= bank-vaults
@@ -61,14 +67,14 @@ build-debug: build ## Build a binary with remote debugging capabilities
 
 .PHONY: docker
 docker: ## Build a Docker image
-	docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile .
+	docker build ${DOCKER_BUILD_EXTRA_ARGS} -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile .
 ifeq (${DOCKER_LATEST}, 1)
 	docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
 endif
 
 .PHONY: docker-webhook
 docker-webhook: ## Build a Docker-webhook image
-	docker build -t ${WEBHOOK_DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile.webhook .
+	docker build ${DOCKER_BUILD_EXTRA_ARGS} -t ${WEBHOOK_DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile.webhook .
 ifeq (${DOCKER_LATEST}, 1)
 	docker tag ${WEBHOOK_DOCKER_IMAGE}:${DOCKER_TAG} ${WEBHOOK_DOCKER_IMAGE}:latest
 endif
@@ -89,7 +95,7 @@ endif
 
 .PHONY: docker-operator
 docker-operator: ## Build a Docker image for the Operator
-	docker build -t ${OPERATOR_DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile.operator .
+	docker build ${DOCKER_BUILD_EXTRA_ARGS} -t ${OPERATOR_DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile.operator .
 ifeq (${DOCKER_LATEST}, 1)
 	docker tag ${OPERATOR_DOCKER_IMAGE}:${DOCKER_TAG} ${OPERATOR_DOCKER_IMAGE}:latest
 endif
