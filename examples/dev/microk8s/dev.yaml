@@ -2,11 +2,10 @@ apiVersion: "vault.banzaicloud.com/v1alpha1"
 kind: Vault
 metadata:
   name: vault-dev
-  namespace: default
 spec:
   size: 1
-  image: vault:1.4.2
-  bankVaultsImage: docker.io/banzaicloud/bank-vaults:add_individual_svc_in_sans
+  image: docker.io/library/vault:dev-ui
+  bankVaultsImage: docker.io/banzaicloud/bank-vaults:revoke_root_token
 
   # Common annotations for all created resources
   annotations:
@@ -53,7 +52,7 @@ spec:
       # This is true by default
       preFlightChecks: true
     kubernetes:
-      secretNamespace: vault
+      secretNamespace: default
 
   # A YAML representation of a final vault config file.
   # See https://www.vaultproject.io/docs/configuration/ for more information.
@@ -84,6 +83,14 @@ spec:
           capabilities = ["create", "read", "update", "delete", "list"]
           }
     auth:
+      - type: ldap
+        config:
+          url: ldaps://ldap.myorg.com:636
+          starttls: False
+          insecure_tls: False
+          binddn: "cn=vault,ou=Users,dc=example,dc=com"
+          bindpass: "testpass"
+          userdn: "ou=Users,dc=example,dc=com"
       - type: kubernetes
         roles:
           # Allow every pod in the default namespace to use the secret kv store
@@ -128,18 +135,3 @@ spec:
 
   # Marks presence of Istio, which influences things like port namings
   istioEnabled: false
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: vault-file
-  namespace: vault
-spec:
-  # https://kubernetes.io/docs/concepts/storage/persistent-volumes/#class-1
-  # storageClassName: ""
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
