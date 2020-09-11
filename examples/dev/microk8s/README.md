@@ -1,6 +1,6 @@
 # Developing on MicroK8s
 
-MicroK8s is super simple to setup and has minimal overhead. Once you install it make 
+MicroK8s is super simple to setup and has minimal overhead. Once you install it make
 sure to enable the storage addon, so that persistent volumes and persistent volume
 claims can be served.
 ```bash
