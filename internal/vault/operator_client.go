@@ -69,6 +69,10 @@ type Config struct {
 
 	// should the KV backend be tested first to validate access rights
 	PreFlightChecks bool
+
+	// Should use only temp root tokens created using the unseal keys
+	// and revoke the initial root token as soon as possible
+	UseTempRootTokens bool
 }
 
 // vault is an implementation of the Vault interface that will perform actions
@@ -230,7 +234,10 @@ func (v *vault) keyStoreSet(key string, val []byte) error {
 	}
 }
 
-// Init initializes Vault if is not initialized already
+// Init initializes Vault if is not initialized already, and will store the init
+// root token and unseal keys in the storage backend. It will also unseal the
+// Vault instance. Depending on the configuration it might not store the root
+// token and it might revoke it immediately.
 func (v *vault) Init() error {
 	initialized, err := v.cl.Sys().InitStatus()
 	if err != nil {
@@ -252,7 +259,7 @@ func (v *vault) Init() error {
 		}
 	}
 
-	// test for an existing keys
+	// test for existing keys
 	keys := []string{
 		v.rootTokenKey(),
 	}
