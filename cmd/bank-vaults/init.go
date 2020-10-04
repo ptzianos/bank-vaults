@@ -25,6 +25,7 @@ import (
 const cfgInitRootToken = "init-root-token"
 const cfgStoreRootToken = "store-root-token"
 const cfgPreFlightChecks = "pre-flight-checks"
+const cfgRevokeRootToken = "revoke-root-token"
 
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -36,6 +37,7 @@ storing the keys in the given backend.
 It will not unseal the Vault instance after initialising.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		store, err := kvStoreForConfig(c)
+
 		if err != nil {
 			logrus.Fatalf("error creating kv store: %s", err.Error())
 		}
