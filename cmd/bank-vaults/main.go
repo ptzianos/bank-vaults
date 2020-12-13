@@ -76,6 +76,7 @@ const cfgVaultRole = "vault-role"
 const cfgVaultAuthPath = "vault-auth-path"
 const cfgVaultTokenPath = "vault-token-path"
 const cfgVaultToken = "vault-token"
+const cfgTempVaultToken = "temp-vault-token"
 
 const cfgK8SNamespace = "k8s-secret-namespace"
 const cfgK8SSecret = "k8s-secret-name"
@@ -227,6 +228,7 @@ func init() {
 	configStringVar(rootCmd, cfgVaultAuthPath, "", "Auth path for Kubernetes auth type")
 	configStringVar(rootCmd, cfgVaultTokenPath, "", "Path to file containing Vault token")
 	configStringVar(rootCmd, cfgVaultToken, "", "Vault token")
+	configBoolVar(rootCmd, cfgTempVaultToken, false, "Use temp root tokens")
 
 	// K8S Secret Storage flags
 	configStringVar(rootCmd, cfgK8SNamespace, "", "The namespace of the K8S Secret to store values in")

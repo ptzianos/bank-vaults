@@ -42,8 +42,9 @@ func vaultConfigForConfig(c *viper.Viper) internalVault.Config {
 		SecretShares:    c.GetInt(cfgSecretShares),
 		SecretThreshold: c.GetInt(cfgSecretThreshold),
 
-		InitRootToken:  c.GetString(cfgInitRootToken),
-		StoreRootToken: c.GetBool(cfgStoreRootToken),
+		InitRootToken:     c.GetString(cfgInitRootToken),
+		StoreRootToken:    c.GetBool(cfgStoreRootToken),
+		UseTempRootTokens: c.GetBool(cfgRevokeRootToken),
 
 		PreFlightChecks: c.GetBool(cfgPreFlightChecks),
 	}

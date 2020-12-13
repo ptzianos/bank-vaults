@@ -52,6 +52,7 @@ var configureCmd = &cobra.Command{
 		unsealConfig.unsealPeriod = c.GetDuration(cfgUnsealPeriod)
 		vaultConfigFiles := c.GetStringSlice(cfgVaultConfigFile)
 		disableMetrics := c.GetBool(cfgDisableMetrics)
+		tempRootToken := appConfig.GetBook(cfgTempVaultToken)
 
 		store, err := kvStoreForConfig(c)
 		if err != nil {
@@ -100,7 +101,6 @@ var configureCmd = &cobra.Command{
 		}
 
 		for config := range configurations {
-
 			logrus.Infoln("applying config file :", config.ConfigFileUsed())
 
 			func() {
