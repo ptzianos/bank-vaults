@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/hcl"
 	hclPrinter "github.com/hashicorp/hcl/hcl/printer"
 	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/helper/token"
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	json "github.com/json-iterator/go"
 	"github.com/mitchellh/mapstructure"
@@ -98,9 +99,10 @@ type Vault interface {
 	Unseal() error
 	Leader() (bool, error)
 	Configure(config *viper.Viper) error
+	GenerateTempRootToken() ([]byte, error)
 }
 
-//
+// KVService represents a service where the unseal keys and the root token (if one exists) will be stored
 type KVService interface {
 	Set(key string, value []byte) error
 	Get(key string) ([]byte, error)
@@ -122,7 +124,7 @@ func (t kvTester) Test(key string) error {
 	return t.Service.Set(key, []byte(key))
 }
 
-// New returns a new vault Vault, or an error.
+// New returns a new Vault client object or an error.
 func New(k KVService, cl *api.Client, config Config) (Vault, error) {
 	if config.SecretShares < config.SecretThreshold {
 		return nil, errors.Errorf("the secret threshold can't be bigger than the shares [%d < %d]", config.SecretShares, config.SecretThreshold)
@@ -260,8 +262,9 @@ func (v *vault) Init() error {
 	}
 
 	// test for existing keys
-	keys := []string{
-		v.rootTokenKey(),
+	var keys []string
+	if v.config.StoreRootToken {
+		keys = append(keys, v.rootTokenKey())
 	}
 
 	// add unseal keys
@@ -313,51 +316,22 @@ func (v *vault) Init() error {
 	}
 
 	rootToken := resp.RootToken
+	if v.config.UseTempRootTokens {
+		if err := revokeRootToken(rootToken); err != nil {
+			logrus.Info("Could not revoke root token")
+		}
+	}
 
 	// this sets up a predefined root token
 	if v.config.InitRootToken != "" {
-		logrus.Info("setting up init root token, waiting for vault to be unsealed")
-
-		count := 0
-		wait := time.Second * 2
-		for {
-			sealed, err := v.Sealed()
-			if !sealed {
-				break
-			}
-			if err == nil {
-				logrus.Info("vault still sealed, wait for unsealing")
-			} else {
-				logrus.Infof("vault not reachable: %s", err.Error())
-			}
-
-			count++
-			time.Sleep(wait)
-		}
-
-		// use temporary token
-		v.cl.SetToken(resp.RootToken)
-
-		// setup root token with provided key
-		_, err := v.cl.Auth().Token().CreateOrphan(&api.TokenCreateRequest{
-			ID:          v.config.InitRootToken,
-			Policies:    []string{"root"},
-			DisplayName: "root-token",
-			NoParent:    true,
-		})
+		err := waitAndSetPredefinedRootToken(rootToken)
 		if err != nil {
-			return errors.Wrapf(err, "unable to setup requested root token, (temporary root token: '%s')", resp.RootToken)
+			return err
 		}
-
-		// revoke the temporary token
-		err = v.cl.Auth().Token().RevokeSelf(resp.RootToken)
-		if err != nil {
-			return errors.Wrap(err, "unable to revoke temporary root token")
-		}
-
 		rootToken = v.config.InitRootToken
 	}
 
+	// Store root token if not using temp root tokens
 	if v.config.StoreRootToken {
 		rootTokenKey := v.rootTokenKey()
 		if err = v.keyStoreSet(rootTokenKey, []byte(resp.RootToken)); err != nil {
@@ -371,15 +345,72 @@ func (v *vault) Init() error {
 	return nil
 }
 
+// Will use the current root token that was returned by the init operation to
+// create another root token with the predefined value.
+func (v *vault) waitAndSetPredefinedRootToken(currentRootToken string) error {
+	logrus.Info("setting up init root token, waiting for vault to be unsealed")
+
+	count := 0
+	wait := time.Second * 2
+	for {
+		sealed, err := v.Sealed()
+		if !sealed {
+			break
+		}
+		if err == nil {
+			logrus.Info("vault still sealed, wait for unsealing")
+		} else {
+			logrus.Infof("vault not reachable: %s", err.Error())
+		}
+
+		count++
+		time.Sleep(wait)
+	}
+
+	// use temporary token
+	v.cl.SetToken(currentRootToken)
+	logrus.Info("creating a new root token")
+	// setup root token with provided key
+	_, err := v.cl.Auth().Token().CreateOrphan(&api.TokenCreateRequest{
+		ID:          v.config.InitRootToken,
+		Policies:    []string{"root"},
+		DisplayName: "root-token",
+		NoParent:    true,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "unable to setup requested root token, (temporary root token: '%s')", currentRootToken)
+	}
+
+	// revoke the temporary token
+	logrus.Info("revoking old root token")
+	if err = v.cl.Auth().Token().RevokeSelf(currentRootToken); err != nil {
+		return errors.Wrap(err, "unable to revoke temporary root token")
+	}
+	return nil
+}
+
+func (v *vault) revokeRootToken(rootToken string) error {
+	if err := v.cl.Auth().Token().RevokeSelf(rootToken); err != nil {
+		return errors.Wrap(err, "unable to revoke temporary root token")
+	}
+	return nil
+}
+
+func (v *vault) retrieveRootToken() ([]byte], error) {
+	if v.config.UseTempRootTokens {
+		return v.GenerateTempRootToken()
+	}
+	return v.keyStore.Get(v.rootTokenKey())
+}
+
 // in our case Vault is initialized when root key is stored in the Cloud KMS
 func (v *vault) RaftInitialized() (bool, error) {
-	rootToken, err := v.keyStore.Get(v.rootTokenKey())
+	rootToken, err := v.retrieveRootToken()
 	if err != nil {
 		if isNotFoundError(err) {
 			return false, nil
 		}
-
-		return false, errors.Wrapf(err, "unable to get key '%s'", v.rootTokenKey())
+		return false, err
 	}
 
 	if len(rootToken) > 0 {
@@ -439,10 +470,11 @@ func (v *vault) RaftJoin(leaderAPIAddr string) error {
 	return errors.New("vault hasn't joined raft cluster") // nolint:goerr113
 }
 
+// Configure will deploy the current configuration to the Vault instance
 func (v *vault) Configure(config *viper.Viper) error {
 	logrus.Debugf("retrieving key from kms service...")
 
-	rootToken, err := v.keyStore.Get(v.rootTokenKey())
+	rootToken, err := v.retrieveRootToken()
 	if err != nil {
 		return errors.Wrapf(err, "unable to get key '%s'", v.rootTokenKey())
 	}
@@ -1757,4 +1789,49 @@ func getOrDefaultSecretData(m interface{}) (map[string]interface{}, error) {
 	data["data"] = secData
 
 	return data, nil
+}
+
+// Present the unseal keys to Vault to generate a temporary root token
+func (v *vault) GenerateTempRootToken() ([]byte], error) {
+	unsealKeys := make([]string, v.config.SecretShares)
+
+	logrus.Info("Fetching unseal keys")
+	for i := range c.config.SecretShares {
+		keyID := v.unsealKeyForID(i)
+		unsealKeys[i], err := v.keyStore.Get(keyID)
+
+		if err != nil {
+			return nil, errors.Wrapf(err, "error fetchings unseal key '%s'", keyID)
+		}
+	}
+
+	resp, err := v.cl.Sys().GenerateRootInit("", "")
+	if err != nil {
+		return nil, errors.Wrap(err, "could not generate root init token")
+	}
+
+	var tempRootToken string
+	for i, unsealKey := range unsealKeys {
+		logrus.Infof("Submitting unseal key %s to generate temp root token", v.unsealKeyForID(i))
+		resp, err := v.cl.Sys().GenerateRootUpdate(unsealKey, resp.OTP)
+		if err != nil {
+			return "", errors.Wrap(err, "could not generate root init token")
+		}
+		if resp.Complete {
+			logrus.Info("Finished submitting unseal keys. Decoding temp root token")
+			tempRootToken, err = token.DecodeRootToken(res.EncodedRootToken, rootInitRes.OTP, rootInitRes.OTPLength)
+			if err != nil {
+				return nil, errors.Wrap(err, "could not decode new root token")
+			}
+			break
+		}
+	}
+
+	logrus.Info("Looking up temp root token to verify it's been created")
+	res, err := v.cl.Auth().Token().Lookup(tempRootToken)
+	if err != nil {
+		return nil, errors.Wrap(err, "there was an error while looking up temporary root token")
+	}
+
+	return []byte(tempRootToken), nil
 }

@@ -52,7 +52,7 @@ var configureCmd = &cobra.Command{
 		unsealConfig.unsealPeriod = c.GetDuration(cfgUnsealPeriod)
 		vaultConfigFiles := c.GetStringSlice(cfgVaultConfigFile)
 		disableMetrics := c.GetBool(cfgDisableMetrics)
-		tempRootToken := appConfig.GetBook(cfgTempVaultToken)
+		tempRootToken := c.GetBool(cfgTempVaultToken)
 
 		store, err := kvStoreForConfig(c)
 		if err != nil {
