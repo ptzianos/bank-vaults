@@ -2,8 +2,8 @@
 
 OS = $(shell uname)
 
-DOCKER_BUILD_EXTRA_ARGS ?= 
-# Export HOST_NETWORK=1 if you want to build the docker images with 
+DOCKER_BUILD_EXTRA_ARGS ?=
+# Export HOST_NETWORK=1 if you want to build the docker images with host network (useful when using some VPNs)
 ifeq (${HOST_NETWORK}, 1)
 	DOCKER_BUILD_EXTRA_ARGS += --network host
 endif
