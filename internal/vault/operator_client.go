@@ -317,14 +317,15 @@ func (v *vault) Init() error {
 
 	rootToken := resp.RootToken
 	if v.config.UseTempRootTokens {
-		if err := revokeRootToken(rootToken); err != nil {
-			logrus.Info("Could not revoke root token")
+		if err := v.revokeRootToken(rootToken); err != nil {
+			logrus.Info("Could not revoke root token. Will store it and retry to revoke it later")
+			v.config.StoreRootToken = true
 		}
 	}
 
 	// this sets up a predefined root token
 	if v.config.InitRootToken != "" {
-		err := waitAndSetPredefinedRootToken(rootToken)
+		err := v.waitAndSetPredefinedRootToken(rootToken)
 		if err != nil {
 			return err
 		}
@@ -396,7 +397,7 @@ func (v *vault) revokeRootToken(rootToken string) error {
 	return nil
 }
 
-func (v *vault) retrieveRootToken() ([]byte], error) {
+func (v *vault) retrieveRootToken() ([]byte, error) {
 	if v.config.UseTempRootTokens {
 		return v.GenerateTempRootToken()
 	}
@@ -1792,20 +1793,21 @@ func getOrDefaultSecretData(m interface{}) (map[string]interface{}, error) {
 }
 
 // Present the unseal keys to Vault to generate a temporary root token
-func (v *vault) GenerateTempRootToken() ([]byte], error) {
-	unsealKeys := make([]string, v.config.SecretShares)
+func (v *vault) GenerateTempRootToken() ([]byte, error) {
+	var err error
+	unsealKeys := make([][]byte, v.config.SecretShares)
 
 	logrus.Info("Fetching unseal keys")
-	for i := range c.config.SecretShares {
+	for i := 0; i < v.config.SecretShares; i++ {
 		keyID := v.unsealKeyForID(i)
-		unsealKeys[i], err := v.keyStore.Get(keyID)
+		unsealKeys[i], err = v.keyStore.Get(keyID)
 
 		if err != nil {
 			return nil, errors.Wrapf(err, "error fetchings unseal key '%s'", keyID)
 		}
 	}
 
-	resp, err := v.cl.Sys().GenerateRootInit("", "")
+	rootInitResp, err := v.cl.Sys().GenerateRootInit("", "")
 	if err != nil {
 		return nil, errors.Wrap(err, "could not generate root init token")
 	}
@@ -1813,13 +1815,14 @@ func (v *vault) GenerateTempRootToken() ([]byte], error) {
 	var tempRootToken string
 	for i, unsealKey := range unsealKeys {
 		logrus.Infof("Submitting unseal key %s to generate temp root token", v.unsealKeyForID(i))
-		resp, err := v.cl.Sys().GenerateRootUpdate(unsealKey, resp.OTP)
+		resp, err := v.cl.Sys().GenerateRootUpdate(string(unsealKey[:]), rootInitResp.OTP)
 		if err != nil {
-			return "", errors.Wrap(err, "could not generate root init token")
+			return nil, errors.Wrap(err, "could not generate root init token")
 		}
 		if resp.Complete {
 			logrus.Info("Finished submitting unseal keys. Decoding temp root token")
-			tempRootToken, err = token.DecodeRootToken(res.EncodedRootToken, rootInitRes.OTP, rootInitRes.OTPLength)
+			tempRootToken, err = token.DecodeRootToken(
+				resp.EncodedRootToken, rootInitResp.OTP, rootInitResp.OTPLength)
 			if err != nil {
 				return nil, errors.Wrap(err, "could not decode new root token")
 			}
@@ -1828,7 +1831,7 @@ func (v *vault) GenerateTempRootToken() ([]byte], error) {
 	}
 
 	logrus.Info("Looking up temp root token to verify it's been created")
-	res, err := v.cl.Auth().Token().Lookup(tempRootToken)
+	_, err = v.cl.Auth().Token().Lookup(tempRootToken)
 	if err != nil {
 		return nil, errors.Wrap(err, "there was an error while looking up temporary root token")
 	}
