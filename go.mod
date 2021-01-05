@@ -86,6 +86,7 @@ require (
 replace (
 	github.com/banzaicloud/bank-vaults/pkg/sdk => ./pkg/sdk
 	google.golang.org/grpc => google.golang.org/grpc v1.29.1
+	github.com/hashicorp/vault => github.com/ptzianos/vault vault_operator
 )
 
 go 1.15
