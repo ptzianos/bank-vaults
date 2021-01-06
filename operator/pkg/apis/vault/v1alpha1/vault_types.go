@@ -629,7 +629,7 @@ func (spec *VaultSpec) GetAPIPortName() string {
 	return portName
 }
 
-// GetVaultLAbels returns the Vault Pod , Secret and ConfigMap Labels
+// GetVaultLabels returns the Vault Pod , Secret and ConfigMap Labels
 func (spec *VaultSpec) GetVaultLabels() map[string]string {
 	if spec.VaultLabels == nil {
 		spec.VaultLabels = map[string]string{}
