@@ -108,7 +108,7 @@ type VaultSpec struct {
 	// default: fluent/fluentd:edge
 	FluentDImage string `json:"fluentdImage,omitempty"`
 
-	// FleuntDConfLocation is the location of the fluent.conf file
+	// FluentDConfLocation is the location of the fluent.conf file
 	// default: "/fluentd/etc"
 	FleuntDConfLocation string `json:"fleuntdConfLocation,omitempty"`
 
@@ -675,10 +675,10 @@ func (spec *VaultSpec) GetFluentDImage() string {
 
 // GetFluentDConfMountPath returns the mount path for the fluent.conf
 func (spec *VaultSpec) GetFluentDConfMountPath() string {
-	if spec.FleuntDConfLocation == "" {
+	if spec.FluentDConfLocation == "" {
 		return "/fluentd/etc"
 	}
-	return spec.FleuntDConfLocation
+	return spec.FluentDConfLocation
 }
 
 // IsFluentDEnabled returns true if fluentd sidecar is to be deployed
@@ -1034,6 +1034,8 @@ func (usc *UnsealConfig) ToArgs(vault *Vault) []string {
 		)
 
 	}
+
+	// if usc.Vault.
 
 	return args
 }
