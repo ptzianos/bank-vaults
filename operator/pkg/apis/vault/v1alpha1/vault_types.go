@@ -1035,7 +1035,9 @@ func (usc *UnsealConfig) ToArgs(vault *Vault) []string {
 
 	}
 
-	// if usc.Vault.
+	if usc.Vault.RevokeRoot {
+		args = append(args, "--revoke-root-token")
+	}
 
 	return args
 }
@@ -1093,6 +1095,7 @@ type VaultUnsealConfig struct {
 	AuthPath       string `json:"authPath,omitempty"`
 	TokenPath      string `json:"tokenPath,omitempty"`
 	Token          string `json:"token,omitempty"`
+	RevokeRoot     bool   `json:"revokeRoot`
 }
 
 // HSMUnsealConfig holds the parameters for remote HSM based unsealing
