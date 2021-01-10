@@ -15,7 +15,7 @@ make docker docker-operator docker-webhook
 ```
 Then you need to import the images into the microk8s containerd process:
 ```bash
-docker save banzaicloud/<some_image>:<your_branch_name> | microk8s.ctr -n k8s.io images import -
+docker save ghcr.io/banzaicloud/<some_image>:<your_branch_name> | microk8s.ctr --namespace k8s.io images import -
 ```
 If you do:
 ```bash
@@ -25,5 +25,5 @@ you should be able to see your image now.
 
 Finally, you can deploy the operator using:
 ```bash
-helm upgrade --install vault-operator charts/vault-operator --set=image.repository=docker.io/banzaicloud/vault-operator --set=image.tag=<your_branch_name>
+helm upgrade --install vault-operator charts/vault-operator --set=image.repository=ghcr.io/banzaicloud/vault-operator --set=image.tag=<your_branch_name>
 ```
