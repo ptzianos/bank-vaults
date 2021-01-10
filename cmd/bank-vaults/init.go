@@ -62,6 +62,7 @@ func init() {
 	configStringVar(initCmd, cfgInitRootToken, "", "root token for the new vault cluster")
 	configBoolVar(rootCmd, cfgStoreRootToken, true, "should the root token be stored in the key store")
 	configBoolVar(rootCmd, cfgPreFlightChecks, true, "should the key store be tested first to validate access rights")
+	configBoolVar(rootCmd, cfgRevokeRootToken, true, "should the key store be tested first to validate access rights")
 
 	rootCmd.AddCommand(initCmd)
 }

@@ -852,6 +852,7 @@ type UnsealConfig struct {
 // UnsealOptions represents the common options to all unsealing backends
 type UnsealOptions struct {
 	PreFlightChecks *bool `json:"preFlightChecks,omitempty"`
+	RevokeRootToken *bool `json:"revokeRootToken,omitempty"`
 }
 
 func (uso UnsealOptions) ToArgs() []string {
@@ -859,6 +860,10 @@ func (uso UnsealOptions) ToArgs() []string {
 	if uso.PreFlightChecks == nil || *uso.PreFlightChecks {
 		args = append(args, "--pre-flight-checks", "true")
 	}
+	if uso.RevokeRootToken != nil || *uso.RevokeRootToken {
+		args = append(args, "--revoke-root-token", "true")
+	}
+
 	return args
 }
 
@@ -1035,8 +1040,8 @@ func (usc *UnsealConfig) ToArgs(vault *Vault) []string {
 
 	}
 
-	if usc.Vault.RevokeRoot {
-		args = append(args, "--revoke-root-token")
+	if usc.Options.RevokeRootToken != nil || *usc.Options.RevokeRootToken {
+		args = append(args, "--temp-vault-token", "true")
 	}
 
 	return args
