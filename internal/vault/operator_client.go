@@ -72,8 +72,10 @@ type Config struct {
 	PreFlightChecks bool
 
 	// Should use only temp root tokens created using the unseal keys
-	// and revoke the initial root token as soon as possible
 	UseTempRootTokens bool
+
+	// Revoke the root token as soon as possile if it's still active
+	RevokeRootToken bool
 }
 
 // vault is an implementation of the Vault interface that will perform actions
@@ -316,7 +318,7 @@ func (v *vault) Init() error {
 	}
 
 	rootToken := resp.RootToken
-	if v.config.UseTempRootTokens {
+	if v.config.RevokeRootToken {
 		if err := v.revokeRootToken(rootToken); err != nil {
 			logrus.Info("Could not revoke root token. Will store it and retry to revoke it later")
 			v.config.StoreRootToken = true
@@ -1807,14 +1809,27 @@ func (v *vault) GenerateTempRootToken() ([]byte, error) {
 		}
 	}
 
+	logrus.Info("Initiating root token generation")
 	rootInitResp, err := v.cl.Sys().GenerateRootInit("", "")
 	if err != nil {
-		return nil, errors.Wrap(err, "could not generate root init token")
+		logrus.Infof("Error returned: %s", err.Error())
+		if strings.Contains(err.Error(), "root generation already in progress") {
+			logrus.Info("A root generation is already in progress. Cancelling and restarting")
+			err := v.cl.Sys().GenerateRootCancel()
+			if err != nil {
+				return nil, errors.Wrap(err, "Could not cancel root init generation process")
+			}
+			rootInitResp, err = v.cl.Sys().GenerateRootInit("", "")
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "could not generate root init token")
+		}
 	}
 
 	var tempRootToken string
 	for i, unsealKey := range unsealKeys {
 		logrus.Infof("Submitting unseal key %s to generate temp root token", v.unsealKeyForID(i))
+		logrus.Infof("Submitting nonce: %s", rootInitResp.OTP)
 		resp, err := v.cl.Sys().GenerateRootUpdate(string(unsealKey[:]), rootInitResp.OTP)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not generate root init token")
