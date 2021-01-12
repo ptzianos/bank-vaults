@@ -1812,41 +1812,44 @@ func (v *vault) GenerateTempRootToken() ([]byte, error) {
 	logrus.Info("Initiating root token generation")
 	rootInitResp, err := v.cl.Sys().GenerateRootInit("", "")
 	if err != nil {
-		logrus.Infof("Error returned: %s", err.Error())
 		if strings.Contains(err.Error(), "root generation already in progress") {
 			logrus.Info("A root generation is already in progress. Cancelling and restarting")
 			err := v.cl.Sys().GenerateRootCancel()
 			if err != nil {
 				return nil, errors.Wrap(err, "Could not cancel root init generation process")
 			}
+			logrus.Info("Previous root generation workflow has been cancelled")
 			rootInitResp, err = v.cl.Sys().GenerateRootInit("", "")
-		}
-		if err != nil {
+			// Detect corner case where both an error and a response is returned
+			if rootInitResp == nil && err != nil {
+				return nil, errors.Wrap(err, "could not restart root init token generation process")
+			}
+		} else {
 			return nil, errors.Wrap(err, "could not generate root init token")
 		}
 	}
 
 	var tempRootToken string
 	for i, unsealKey := range unsealKeys {
-		logrus.Infof("Submitting unseal key %s to generate temp root token", v.unsealKeyForID(i))
-		logrus.Infof("Submitting nonce: %s", rootInitResp.OTP)
-		resp, err := v.cl.Sys().GenerateRootUpdate(string(unsealKey[:]), rootInitResp.OTP)
+		logrus.Infof("Submitting unseal key %s", v.unsealKeyForID(i))
+		resp, err := v.cl.Sys().GenerateRootUpdate(string(unsealKey[:]), rootInitResp.Nonce)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not generate root init token")
 		}
 		if resp.Complete {
-			logrus.Info("Finished submitting unseal keys. Decoding temp root token")
+			logrus.Info("Finished submitting unseal keys. Decoding new temp root token")
 			tempRootToken, err = token.DecodeRootToken(
 				resp.EncodedRootToken, rootInitResp.OTP, rootInitResp.OTPLength)
 			if err != nil {
 				return nil, errors.Wrap(err, "could not decode new root token")
 			}
+			v.cl.SetToken(tempRootToken)
 			break
 		}
 	}
 
-	logrus.Info("Looking up temp root token to verify it's been created")
-	_, err = v.cl.Auth().Token().Lookup(tempRootToken)
+	logrus.Info("Looking up new temp root token to verify it's been created")
+	_, err = v.cl.Auth().Token().LookupSelf()
 	if err != nil {
 		return nil, errors.Wrap(err, "there was an error while looking up temporary root token")
 	}
