@@ -1795,6 +1795,21 @@ func getOrDefaultSecretData(m interface{}) (map[string]interface{}, error) {
 	return data, nil
 }
 
+func (v *vault) EnsureRootTokenRevoked() error {
+	logrus.Info("Checking if root token has been revoked")
+	rootToken, err := v.keyStore.Get(v.rootTokenKey())
+	if err != nil {
+		logrus.Infof("There was an error while trying to find a stored root token. Assuming it has been revoked")
+		return nil
+	}
+	v.cl.SetToken(string(rootToken))
+	err = v.cl.Sys().Revoke((string(rootToken))
+	if err != nil {
+		logrus.Infof("There was an error while revoking root token: %s", err)
+	}
+	return err
+}
+
 // Present the unseal keys to Vault to generate a temporary root token
 func (v *vault) GenerateTempRootToken() ([]byte, error) {
 	var err error

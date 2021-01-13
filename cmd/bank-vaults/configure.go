@@ -63,7 +63,8 @@ var configureCmd = &cobra.Command{
 			logrus.Fatalf("error connecting to vault: %s", err.Error())
 		}
 
-		v, err := internalVault.New(store, cl, vaultConfigForConfig(c))
+		vaultConfig := vaultConfigForConfig(c)
+		v, err := internalVault.New(store, cl, vaultConfig)
 		if err != nil {
 			logrus.Fatalf("error creating vault helper: %s", err.Error())
 		}
@@ -97,6 +98,10 @@ var configureCmd = &cobra.Command{
 			Max:    60 * time.Second,
 			Factor: 2,
 			Jitter: false,
+		}
+
+		if vaultConfig.RevokeRootToken {
+			v.EnsureRootTokenRevoked()
 		}
 
 		for config := range configurations {
