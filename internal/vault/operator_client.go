@@ -319,8 +319,9 @@ func (v *vault) Init() error {
 
 	rootToken := resp.RootToken
 	if v.config.RevokeRootToken {
+		logrus.Info("Revoking root token")
 		if err := v.revokeRootToken(rootToken); err != nil {
-			logrus.Info("Could not revoke root token. Will store it and retry to revoke it later")
+			logrus.Infof("Could not revoke root token. Will store it and retry to revoke it later: %v", err.Error())
 			v.config.StoreRootToken = true
 		}
 	}
