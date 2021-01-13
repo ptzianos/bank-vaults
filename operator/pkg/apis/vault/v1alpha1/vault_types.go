@@ -862,6 +862,7 @@ func (uso UnsealOptions) ToArgs() []string {
 	}
 	if uso.RevokeRootToken != nil || *uso.RevokeRootToken {
 		args = append(args, "--revoke-root-token", "true")
+		args = append(args, "--store-root-token", "false")
 	}
 
 	return args
@@ -1042,6 +1043,7 @@ func (usc *UnsealConfig) ToArgs(vault *Vault) []string {
 
 	if usc.Options.RevokeRootToken != nil || *usc.Options.RevokeRootToken {
 		args = append(args, "--temp-vault-token", "true")
+		args = append(args, "--revoke-root-token", "true")
 	}
 
 	return args
