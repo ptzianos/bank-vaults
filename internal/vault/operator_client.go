@@ -336,7 +336,7 @@ func (v *vault) Init() error {
 	if v.config.StoreRootToken {
 		rootTokenKey := v.rootTokenKey()
 		if err = v.keyStoreSet(rootTokenKey, []byte(resp.RootToken)); err != nil {
-			return errors.Wrapf(err, "error storing root token '%s' in key'%s'", rootToken, rootTokenKey)
+			return errors.Wrapf(err, "error storing root token '%s' in key'%s'", resp.RootToken, rootTokenKey)
 		}
 		logrus.WithField("key", rootTokenKey).Info("root token stored in key store")
 	} else if v.config.InitRootToken == "" {
