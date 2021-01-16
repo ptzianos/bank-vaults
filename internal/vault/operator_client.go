@@ -102,6 +102,7 @@ type Vault interface {
 	Leader() (bool, error)
 	Configure(config *viper.Viper) error
 	GenerateTempRootToken() ([]byte, error)
+	EnsureRootTokenRevoked() error
 }
 
 // KVService represents a service where the unseal keys and the root token (if one exists) will be stored
@@ -317,22 +318,18 @@ func (v *vault) Init() error {
 		logrus.WithField("key", keyID).Info("recovery key stored in key store")
 	}
 
-	rootToken := resp.RootToken
-	if v.config.RevokeRootToken {
-		logrus.Info("Revoking root token")
-		if err := v.revokeRootToken(rootToken); err != nil {
-			logrus.Infof("Could not revoke root token. Will store it and retry to revoke it later: %v", err.Error())
-			v.config.StoreRootToken = true
-		}
-	}
-
 	// this sets up a predefined root token
 	if v.config.InitRootToken != "" {
-		err := v.waitAndSetPredefinedRootToken(rootToken)
-		if err != nil {
+		if err := v.waitAndSetPredefinedRootToken(resp.RootToken); err != nil {
 			return err
 		}
-		rootToken = v.config.InitRootToken
+		v.config.RevokeRootToken = true
+	}
+
+	if v.config.RevokeRootToken {
+		if err := v.waitAndRevokeRootToken(resp.RootToken); err != nil {
+			return err
+		}
 	}
 
 	// Store root token if not using temp root tokens
@@ -349,10 +346,8 @@ func (v *vault) Init() error {
 	return nil
 }
 
-// Will use the current root token that was returned by the init operation to
-// create another root token with the predefined value.
-func (v *vault) waitAndSetPredefinedRootToken(currentRootToken string) error {
-	logrus.Info("setting up init root token, waiting for vault to be unsealed")
+func (v *vault) waitForVaultUnseal() {
+	logrus.Info("waiting for Vault to be unsealed")
 
 	count := 0
 	wait := time.Second * 2
@@ -370,9 +365,14 @@ func (v *vault) waitAndSetPredefinedRootToken(currentRootToken string) error {
 		count++
 		time.Sleep(wait)
 	}
+}
 
-	// use temporary token
-	v.cl.SetToken(currentRootToken)
+// Will use the current root token that was returned by the init operation to
+// create another root token with the predefined value.
+func (v *vault) waitAndSetPredefinedRootToken(rootToken string) error {
+	v.waitForVaultUnseal()
+
+	v.cl.SetToken(rootToken)
 	logrus.Info("creating a new root token")
 	// setup root token with provided key
 	_, err := v.cl.Auth().Token().CreateOrphan(&api.TokenCreateRequest{
@@ -382,18 +382,16 @@ func (v *vault) waitAndSetPredefinedRootToken(currentRootToken string) error {
 		NoParent:    true,
 	})
 	if err != nil {
-		return errors.Wrapf(err, "unable to setup requested root token, (temporary root token: '%s')", currentRootToken)
+		err = errors.Wrapf(err, "unable to setup requested root token, (temporary root token: '%s')", v.config.InitRootToken)
 	}
-
-	// revoke the temporary token
-	logrus.Info("revoking old root token")
-	if err = v.cl.Auth().Token().RevokeSelf(currentRootToken); err != nil {
-		return errors.Wrap(err, "unable to revoke temporary root token")
-	}
-	return nil
+	return err
 }
 
-func (v *vault) revokeRootToken(rootToken string) error {
+func (v *vault) waitAndRevokeRootToken(rootToken string) error {
+	v.waitForVaultUnseal()
+
+	v.cl.SetToken(rootToken)
+	logrus.Info("revoking root token, waiting for vault to be unsealed")
 	if err := v.cl.Auth().Token().RevokeSelf(rootToken); err != nil {
 		return errors.Wrap(err, "unable to revoke temporary root token")
 	}
@@ -1803,9 +1801,11 @@ func (v *vault) EnsureRootTokenRevoked() error {
 		return nil
 	}
 	v.cl.SetToken(string(rootToken))
-	err = v.cl.Sys().Revoke((string(rootToken))
+	err = v.cl.Sys().Revoke(string(rootToken))
 	if err != nil {
 		logrus.Infof("There was an error while revoking root token: %s", err)
+	} else {
+		logrus.Info("Root token has been revoked")
 	}
 	return err
 }
