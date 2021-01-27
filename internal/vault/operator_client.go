@@ -318,16 +318,23 @@ func (v *vault) Init() error {
 		logrus.WithField("key", keyID).Info("recovery key stored in key store")
 	}
 
+	go v.configureInitRootToken(resp.RootToken)
+
+	return nil
+}
+
+func (v *vault) configureInitRootToken(rootToken string) error {
+	logrus.Infof("Starting root token handling process(%v)", v.config.StoreRootToken)
 	// this sets up a predefined root token
 	if v.config.InitRootToken != "" {
-		if err := v.waitAndSetPredefinedRootToken(resp.RootToken); err != nil {
+		if err := v.waitAndSetPredefinedRootToken(rootToken); err != nil {
 			return err
 		}
 		v.config.RevokeRootToken = true
 	}
 
 	if v.config.RevokeRootToken {
-		if err := v.waitAndRevokeRootToken(resp.RootToken); err != nil {
+		if err := v.waitAndRevokeRootToken(rootToken); err != nil {
 			return err
 		}
 	}
@@ -335,12 +342,12 @@ func (v *vault) Init() error {
 	// Store root token if not using temp root tokens
 	if v.config.StoreRootToken {
 		rootTokenKey := v.rootTokenKey()
-		if err = v.keyStoreSet(rootTokenKey, []byte(resp.RootToken)); err != nil {
-			return errors.Wrapf(err, "error storing root token '%s' in key'%s'", resp.RootToken, rootTokenKey)
+		if err := v.keyStoreSet(rootTokenKey, []byte(rootToken)); err != nil {
+			return errors.Wrapf(err, "error storing root token '%s' in key'%s'", rootToken, rootTokenKey)
 		}
 		logrus.WithField("key", rootTokenKey).Info("root token stored in key store")
-	} else if v.config.InitRootToken == "" {
-		logrus.WithField("root-token", resp.RootToken).Warnf("won't store root token in key store, this token grants full privileges to vault, so keep this secret")
+	} else if v.config.InitRootToken == "" && !v.config.RevokeRootToken {
+		logrus.WithField("root-token", rootToken).Warnf("won't store root token in key store, this token grants full privileges to vault, so keep this secret")
 	}
 
 	return nil
@@ -391,7 +398,7 @@ func (v *vault) waitAndRevokeRootToken(rootToken string) error {
 	v.waitForVaultUnseal()
 
 	v.cl.SetToken(rootToken)
-	logrus.Info("revoking root token, waiting for vault to be unsealed")
+	logrus.Info("revoking root token")
 	if err := v.cl.Auth().Token().RevokeSelf(rootToken); err != nil {
 		return errors.Wrap(err, "unable to revoke temporary root token")
 	}

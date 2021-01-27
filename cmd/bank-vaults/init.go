@@ -60,9 +60,9 @@ It will not unseal the Vault instance after initialising.`,
 
 func init() {
 	configStringVar(initCmd, cfgInitRootToken, "", "root token for the new vault cluster")
-	configBoolVar(rootCmd, cfgStoreRootToken, true, "should the root token be stored in the key store")
-	configBoolVar(rootCmd, cfgPreFlightChecks, true, "should the key store be tested first to validate access rights")
-	configBoolVar(rootCmd, cfgRevokeRootToken, true, "revoke root token as soon as possible")
+	configBoolVar(rootCmd, cfgStoreRootToken, false, "should the root token be stored in the key store")
+	configBoolVar(rootCmd, cfgPreFlightChecks, false, "should the key store be tested first to validate access rights")
+	configBoolVar(rootCmd, cfgRevokeRootToken, false, "revoke root token as soon as possible")
 
 	rootCmd.AddCommand(initCmd)
 }

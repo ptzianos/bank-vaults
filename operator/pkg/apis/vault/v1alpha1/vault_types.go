@@ -858,11 +858,12 @@ type UnsealOptions struct {
 func (uso UnsealOptions) ToArgs() []string {
 	args := []string{}
 	if uso.PreFlightChecks == nil || *uso.PreFlightChecks {
-		args = append(args, "--pre-flight-checks", "true")
+		args = append(args, "--pre-flight-checks")
 	}
 	if uso.RevokeRootToken != nil && *uso.RevokeRootToken {
-		args = append(args, "--revoke-root-token", "true")
-		args = append(args, "--store-root-token", "false")
+		args = append(args, "--revoke-root-token")
+	} else {
+		args = append(args, "--store-root-token")
 	}
 
 	return args
@@ -1042,8 +1043,7 @@ func (usc *UnsealConfig) ToArgs(vault *Vault) []string {
 	}
 
 	if usc.Options.RevokeRootToken != nil && *usc.Options.RevokeRootToken {
-		args = append(args, "--temp-vault-token", "true")
-		args = append(args, "--revoke-root-token", "true")
+		args = append(args, "--temp-vault-token", "--revoke-root-token")
 	}
 
 	return args
