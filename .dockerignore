@@ -8,6 +8,3 @@ vendor/
 hack/
 *.yaml
 *.yml
-
-# TODO: remove me
-cmd/bank-vaults/root_token.go
